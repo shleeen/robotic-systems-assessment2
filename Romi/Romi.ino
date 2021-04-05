@@ -1,8 +1,8 @@
 #include "encoders.h"
 #include "PID.h"
 #include "kinematics.h"
-
-
+#include <Wire.h>
+#include <VL6180X.h>
 //Pin definitions for motor
 #define L_PWM_PIN 10
 #define L_DIR_PIN 16
@@ -15,7 +15,9 @@
 #define kpReturn 70
 #define kiReturn 0.0001
 #define kdReturn 1
-
+VL6180X sensor;
+float light_meas;
+#define SCALING 2
 
 
 PID pidLeft( kpReturn, kiReturn, kdReturn );
@@ -37,10 +39,16 @@ void setup()
 {
   // Initialise your other globals variables
   // and devices.
-
+  Serial.begin(9600);
+  
   setupEncoder0();
   setupEncoder1();
-
+  
+  Wire.begin();
+  sensor.init();
+  sensor.configureDefault();
+  sensor.setScaling(SCALING);
+  sensor.setTimeout(500);
 
   speed_update_ts=millis();
   demand= 3.0f;
@@ -49,7 +57,7 @@ void setup()
   countLeft_prev= countLeft;
   countRight_prev= countRight;
   // Initialise the Serial communication
-  Serial.begin(9600);
+
   delay(1000);
   Serial.println("***RESET***");
 }
@@ -57,7 +65,17 @@ void setup()
 
 // Remember, loop runs again and again
 void loop(){
+  
+  light_meas= sensor.readAmbientSingle();
+  Serial.print(light_meas);
+  Serial.print('\n');
+  if(light_meas<1000) {
   straightLine();
+  }
+  else{
+    leftMotor(0);
+    rightMotor(0);
+  }
 }
 
 
@@ -86,12 +104,7 @@ void straightLine() {
     countLeft_prev = countLeft;
     countRight_prev = countRight;
   }
-  Serial.print(right_speed_loop);
-  Serial.print(",");
-  Serial.print(demand);
-  Serial.print(",");
-  Serial.print(left_speed_loop);
-  Serial.print("\n");
+
   leftMotor(pidLeft.update(demand, left_speed_loop));
   rightMotor(pidRight.update(demand, right_speed_loop));
 }
