@@ -1,8 +1,10 @@
 #include "encoders.h"
 #include "PID.h"
 #include "kinematics.h"
+#include "lineSensors.h"
 #include <Wire.h>
 #include <VL6180X.h>
+
 
 //Pin definitions for motor
 #define L_PWM_PIN 10
@@ -13,20 +15,18 @@
 #define LINE_CENTRE_PIN A3 //Pin for the centre line sensor
 #define LINE_RIGHT_PIN  A4 //Pin for the right line sensor
 #define BUZZER 6
-#define kpReturn 70
-#define kiReturn 0.0001
-#define kdReturn 1
+#define kpReturn 3.50
+#define kiReturn 0.00025
+#define kdReturn 0.05
+#define kpLineFF 5.25
+#define kiLineFF 0.05
+#define kdLineFF 0.15
 
 // Proximity sensor variables
 VL6180X sensor;
 float light_meas;
 #define SCALING 2
 
-// Global variables
-PID pidLeft( kpReturn, kiReturn, kdReturn );
-PID pidRight( kpReturn, kiReturn, kdReturn );
-
-Kinematics kinematics;
 unsigned long speed_update_ts;
 unsigned long demand_update_ts;
 float left_speed_loop;
@@ -35,15 +35,32 @@ float right_speed_loop;
 float countRight_prev;
 float demand;
 unsigned spd_update_ts;
+int leftSensorRead,  centreSensorRead,  rightSensorRead; //define sensor readings
 
 
+PID pidLeft( kpReturn, kiReturn, kdReturn );
+PID pidRight( kpReturn, kiReturn, kdReturn );
 
-void setup() {
-  Serial.begin(9600);
-  
+lineSensor line_left(LINE_LEFT_PIN); //Create a line sensor object for the left sensor
+lineSensor line_centre(LINE_CENTRE_PIN); //Create a line sensor object for the centre sensor
+lineSensor line_right(LINE_RIGHT_PIN); //Create a line sensor object for the right sensor
+
+Kinematics kinematics;
+
+
+void setup() 
+{
+  // Initialise your other globals variables
+  // and devices.
+
   setupEncoder0();
   setupEncoder1();
-  
+
+  line_left.calib();
+  line_centre.calib();
+  line_right.calib();
+
+
   Wire.begin();
   sensor.init();
   sensor.configureDefault();
@@ -51,17 +68,20 @@ void setup() {
   sensor.setTimeout(500);
 
   speed_update_ts=millis();
-  demand= 3.0f;
+  demand= 7.0f;
   demand_update_ts=millis();
 
   countLeft_prev= countLeft;
   countRight_prev= countRight;
+
+  leftSensorRead = 0;
+  centreSensorRead = 0;
+  rightSensorRead = 0;
   
   // Initialise the Serial communication
-
+  Serial.begin(9600);
   // Initilizing beeps
   PlayBeep(4, 100); PlayBeep(4, 100); PlayBeep(4, 100);
-
   delay(1000);
   Serial.println("***RESET***");
 }
@@ -69,57 +89,68 @@ void setup() {
 
 // Remember, loop runs again and again
 void loop(){
-  
   light_meas = sensor.readAmbientSingle();
-  Serial.print(light_meas);
+  float theta_error = kinematics.getTheta();
+  Serial.print(theta_error);
   Serial.print('\n');
 
-  if(light_meas<1000) {
-    straightLine();
+  if(light_meas<1200) {
+    go_straight();
   }
-  else{
-    // Play emergency stop beeps.
-    PlayBeep(4, 100); PlayBeep(4, 100);
-    
-    leftMotor(0);
-    rightMotor(0);
+  else {
+    leftMotor(0.0f);
+    rightMotor(0.0f);
+    PlayBeep(4,100); PlayBeep(4,100);
   }
+
+}
+
+void PlayBeep(int volume, int delay_ms){
+  analogWrite(BUZZER, volume);
+  delay(delay_ms);
+  analogWrite(BUZZER, 0);
+  delay(delay_ms);
 }
 
 
-// Function to move Romi in a straight line using PID
-void straightLine() {
-  //Measure speed, verify
 
-  //- it looks sensible, direction
-  //- consider control relationship
-  unsigned long elapsed_time;
-  elapsed_time= millis()-speed_update_ts;
-  if(elapsed_time>40) {
-    speed_update_ts= millis();
-    
-    long left_diff;
-    long right_diff;
-    
-    left_diff= countLeft - countLeft_prev;
-    left_speed_loop= (float)left_diff;
-    right_diff= countRight - countRight_prev;
-    right_speed_loop= (float)right_diff;
-    
-    //velocity of left wheel in counts/s
-    left_speed_loop= left_speed_loop/elapsed_time;
-    right_speed_loop= right_speed_loop/elapsed_time;
-    //update last count
-    countLeft_prev = countLeft;
-    countRight_prev = countRight;
-  }
 
-  leftMotor(pidLeft.update(demand, left_speed_loop));
-  rightMotor(pidRight.update(demand, right_speed_loop));
+
+void go_straight() {
+    float theta_error = kinematics.getTheta();
+    int turn_pwm = 0;
+
+    leftSensorRead = line_left.readCalib();
+    centreSensorRead = line_centre.readCalib();
+    rightSensorRead = line_right.readCalib();
+
+    bool left_on_line=false;
+    bool right_on_line=false;
+
+    if (leftSensorRead > 200) left_on_line = true;
+    if (rightSensorRead > 200) right_on_line = true;
+    
+    float left_speed= pidLeft.update(demand, left_speed_loop);
+    float right_speed= pidRight.update(demand, right_speed_loop);
+
+    if (theta_error>2 && left_on_line==false) {
+      turn_pwm = 2.0;
+    }
+    else if (theta_error<-2 && right_on_line==false) {
+      turn_pwm = -2.0;
+    }
+    else if (-2<theta_error<2 && left_on_line==true && right_on_line==true) {
+      turn_pwm = 0;
+    }
+  
+    int left_demand  =  left_speed + turn_pwm;
+    int right_demand =  right_speed - turn_pwm;
+    
+    leftMotor(left_demand);
+    rightMotor(right_demand);
 }
 
-
-// Function to move the left motor
+// Defining motor functions
 void leftMotor(float speed) {
   if (speed < -255.0f || speed > 255.0f) {
     Serial.println("Invalid Left Motor Speed.");
@@ -133,7 +164,6 @@ void leftMotor(float speed) {
   }
 }
 
-// Function to move the right motor
 void rightMotor(float speed) {
   if (speed < -255.0f || speed > 255.0f) {
     Serial.println("Motor speed is no.");
@@ -145,13 +175,4 @@ void rightMotor(float speed) {
     speed = abs(speed);
     analogWrite( R_PWM_PIN, speed );
   }
-}
-
-
-// Function to play a beep once at given volume, for delay_ms long
-void PlayBeep(int volume, int delay_ms){
-  analogWrite(BUZZER, volume);
-  delay(delay_ms);
-  analogWrite(BUZZER, 0);
-  delay(delay_ms);
 }
