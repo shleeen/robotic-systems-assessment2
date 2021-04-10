@@ -91,7 +91,9 @@ void setup()
 void loop(){
   light_meas = sensor.readAmbientSingle();
   float theta_error = kinematics.getTheta();
-  Serial.print(theta_error);
+  Serial.print(leftSensorRead);
+  Serial.print(',');
+  Serial.print(rightSensorRead);
   Serial.print('\n');
 
   if(light_meas<1200) {
@@ -127,19 +129,19 @@ void go_straight() {
     bool left_on_line=false;
     bool right_on_line=false;
 
-    if (leftSensorRead > 200) left_on_line = true;
-    if (rightSensorRead > 200) right_on_line = true;
+    if (leftSensorRead > 150) left_on_line = true;
+    if (rightSensorRead > 150) right_on_line = true;
     
     float left_speed= pidLeft.update(demand, left_speed_loop);
     float right_speed= pidRight.update(demand, right_speed_loop);
 
-    if (theta_error>2 && left_on_line==false) {
+    if (left_on_line==false) {
       turn_pwm = 2.0;
     }
-    else if (theta_error<-2 && right_on_line==false) {
+    else if (right_on_line==false) {
       turn_pwm = -2.0;
     }
-    else if (-2<theta_error<2 && left_on_line==true && right_on_line==true) {
+    else if (left_on_line==true && right_on_line==true) {
       turn_pwm = 0;
     }
   
