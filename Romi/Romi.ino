@@ -22,6 +22,14 @@
 #define kiLineFF 0.05
 #define kdLineFF 0.15
 
+#define BUTTON_A 14
+#define LED 13
+
+#define STATE_INITIAL  0
+#define STATE_DO_EXP   1
+int wasItPressed = 0;
+int state = 0;
+
 // Proximity sensor variables
 VL6180X sensor;
 float light_meas;
@@ -53,6 +61,9 @@ void setup()
   // Initialise your other globals variables
   // and devices.
 
+  pinMode(LED, OUTPUT);
+  pinMode(BUTTON_A, INPUT);
+
   setupEncoder0();
   setupEncoder1();
 
@@ -77,6 +88,10 @@ void setup()
   leftSensorRead = 0;
   centreSensorRead = 0;
   rightSensorRead = 0;
+
+  wasItPressed = 0;
+  state = STATE_INITIAL;
+
   
   // Initialise the Serial communication
   Serial.begin(9600);
@@ -88,34 +103,74 @@ void setup()
  
 
 // Remember, loop runs again and again
+// once reset, wasItPressed is reset to 0
 void loop(){
-  light_meas = sensor.readAmbientSingle();
-  float theta_error = kinematics.getTheta();
-  Serial.print(leftSensorRead);
-  Serial.print(',');
-  Serial.print(rightSensorRead);
-  Serial.print('\n');
+    // HIGH -> button released, LOW -> button presssed
+    
+    if( state == STATE_INITIAL ) {
 
-  if(light_meas<1200) {
-    go_straight();
-  }
-  else {
-    leftMotor(0.0f);
-    rightMotor(0.0f);
-    PlayBeep(4,100); PlayBeep(4,100);
-  }
+        //listen for button press, if pressed change state
+        int buttonState = digitalRead(BUTTON_A);
+        if (buttonState == LOW) {
+          state = STATE_DO_EXP;
+          wasItPressed = 1;
+        }
 
-}
-
-void PlayBeep(int volume, int delay_ms){
-  analogWrite(BUZZER, volume);
-  delay(delay_ms);
-  analogWrite(BUZZER, 0);
-  delay(delay_ms);
+    }
+    else if ( state == STATE_DO_EXP ) {
+        experiment();
+    }
+    else {
+        Serial.print("System Error, Unknown state: ");
+        Serial.println( state );
+    }
 }
 
 
 
+
+// the actual experiment code :)
+void experiment(){
+      light_meas = sensor.readAmbientSingle();
+      float theta_error = kinematics.getTheta();
+
+      // write out some stats
+      Serial.print("speed_here");
+      Serial.print(',');
+      Serial.print("dist_here");
+      Serial.print(',');
+      Serial.println(light_meas);
+
+
+      if(light_meas<1200) {
+        go_straight();
+      }
+      else { //stop
+        leftMotor(0.0f);
+        rightMotor(0.0f);
+        PlayBeep(4,100); PlayBeep(4,100);
+
+        // change state to indicate end of experiment
+        state = STATE_INITIAL;
+       
+      } 
+
+       // other code
+      //  // its getting close to light source, so adjust speed
+      //  if (new_light_measure > old_light_measure ){
+      //    // this means that romi is going towards a light source/obstacle
+      //    // we want to slow down
+      //    new_speed = current_speed - 10;
+      //    leftMotor(new_speed);
+      //    rightMotor(new_speed);
+      //  }
+      //  else {
+      //    // ...
+      //    new_speed = current_speed + 10;
+      //    leftMotor(new_speed);
+      //    rightMotor(new_speed);
+      //  }
+}
 
 
 void go_straight() {
@@ -177,4 +232,12 @@ void rightMotor(float speed) {
     speed = abs(speed);
     analogWrite( R_PWM_PIN, speed );
   }
+}
+
+
+void PlayBeep(int volume, int delay_ms){
+  analogWrite(BUZZER, volume);
+  delay(delay_ms);
+  analogWrite(BUZZER, 0);
+  delay(delay_ms);
 }
