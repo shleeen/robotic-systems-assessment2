@@ -43,9 +43,6 @@ void lineSensor::calib() {
   }
 
   avg = add / numCalib;
-  analogWrite(BUZZER, 10);
-  delay(100);
-  analogWrite(BUZZER, 0);
   
 }
 

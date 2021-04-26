@@ -153,7 +153,7 @@ void PID::reset() {
 //This function prints measurement / demand - Good for visualiser the response on the Serial plotter
 void PID::printResponse() {
   float response = lastMeasurement / lastDemand;
-  Serial.println(response);
+  //Serial.println(response);
 }
 
 void PID::setShowResponse(bool state) {

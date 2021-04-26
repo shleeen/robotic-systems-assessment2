@@ -15,9 +15,9 @@
 #define LINE_CENTRE_PIN A3 //Pin for the centre line sensor
 #define LINE_RIGHT_PIN  A4 //Pin for the right line sensor
 #define BUZZER 6
-#define kpReturn 3.50
-#define kiReturn 0.00025
-#define kdReturn 0.05
+#define kpReturn 2.0
+#define kiReturn 0.00001
+#define kdReturn 1.0
 #define kpLineFF 5.25
 #define kiLineFF 0.05
 #define kdLineFF 0.15
@@ -37,9 +37,12 @@ float demand;
 unsigned spd_update_ts;
 int leftSensorRead,  centreSensorRead,  rightSensorRead; //define sensor readings
 
-
+int left_demand;
+int right_demand;
 PID pidLeft( kpReturn, kiReturn, kdReturn );
 PID pidRight( kpReturn, kiReturn, kdReturn );
+
+bool t_status= false;
 
 lineSensor line_left(LINE_LEFT_PIN); //Create a line sensor object for the left sensor
 lineSensor line_centre(LINE_CENTRE_PIN); //Create a line sensor object for the centre sensor
@@ -68,7 +71,7 @@ void setup()
   sensor.setTimeout(500);
 
   speed_update_ts=millis();
-  demand= 7.0f;
+  demand= 1.5f;
   demand_update_ts=millis();
 
   countLeft_prev= countLeft;
@@ -87,72 +90,143 @@ void setup()
 }
  
 
+
 // Remember, loop runs again and again
 void loop(){
+  //Measure speed, verify
+
+  //- it looks sensible, direction
+  //- consider control relationship
+  unsigned long elapsed_time;
+  elapsed_time= millis()-speed_update_ts;
+  if(elapsed_time>40) {
+    speed_update_ts= millis();
+    
+    long left_diff;
+    long right_diff;
+    
+    left_diff= countLeft - countLeft_prev;
+    left_speed_loop= (float)left_diff;
+    right_diff= countRight - countRight_prev;
+    right_speed_loop= (float)right_diff; 
+    
+    //velocity of left wheel in counts/s
+    left_speed_loop= left_speed_loop/elapsed_time;
+    right_speed_loop= right_speed_loop/elapsed_time;
+    //update last count
+    countLeft_prev = countLeft;
+    countRight_prev = countRight;
+  }
+/*    
+    Serial.print(left_speed_loop);
+    Serial.print(',');
+    Serial.print(demand);
+
+    unsigned long pid_update_
+
+    float error= demand - left_speed_loop;
+    //P CONTROLLER      P-GAIN
+    float p_cont= error*75;
+
+    Serial.print(',');
+    Serial.println(error);
+    Serial.print('\n');
+
+    leftMotor(p_cont);
+*/
+// GO STRAIGHT CODE //
+ 
   light_meas = sensor.readAmbientSingle();
-  float theta_error = kinematics.getTheta();
-  Serial.print(leftSensorRead);
-  Serial.print(',');
-  Serial.print(rightSensorRead);
+  int turn_pwm = 0;
+
+  leftSensorRead = line_left.readCalib();
+  centreSensorRead = line_centre.readCalib();
+  rightSensorRead = line_right.readCalib();
+
+  bool left_on_line=false;
+  bool right_on_line=false;
+
+  if (leftSensorRead > 150) left_on_line = true;
+  if (rightSensorRead > 150) right_on_line = true;
+  //sets approximately equal speed to both motors
+  float left_speed= 42.0f; //pidLeft.update(demand, left_speed_loop);
+  float right_speed= 47.0f;//pidRight.update(demand, right_speed_loop);
+
+  if (left_on_line==false) {
+    turn_pwm = 2.0;
+  }
+  else if (right_on_line==false) {
+    turn_pwm = -2.0;
+  }
+  else if (left_on_line==true && right_on_line==true) {
+    turn_pwm = 0;
+  }
+
+  left_demand  =  left_speed + turn_pwm;
+  right_demand =  right_speed - turn_pwm;
+
+// GO STRAIGHT CODE //
+  //Serial.print(left_demand);
+
+  Serial.print(left_demand);
   Serial.print('\n');
 
-  if(light_meas<1200) {
-    go_straight();
+// Sets a condition on whether Romi should be in motion or stationary //
+  if(light_meas>=1500) {
+    t_status=false;
   }
-  else {
-    leftMotor(0.0f);
-    rightMotor(0.0f);
-    PlayBeep(4,100); PlayBeep(4,100);
+  else if(light_meas<1500) {
+    t_status=true;
   }
+// Sets a condition on whether Romi should be in motion or stationary //
+
+
+// Sets conditions according to the threshold of red light //  
+  if(t_status==false){
+    leftMotor(0);
+    rightMotor(0);
+  }
+  else if(t_status ==true && light_meas>200) {
+    if(light_meas=light_meas+5){
+      red_speed();      
+    }
+
+  }
+
+  else if(t_status==true && light_meas<500){
+    leftMotor(left_demand);
+    rightMotor(right_demand);
+  }
+
+// Sets conditions according to the threshold of red light //  
 
 }
 
+
+// Aims to reduce "current speed" by 5.0f in every iteration //
+void red_speed() {
+    
+    left_demand=left_demand-5.0f;
+    right_demand= right_demand-5.0f;
+    leftMotor(left_demand);
+    rightMotor(right_demand);
+}
+// Aims to reduce "current speed" by 5.0f in every iteration //
+
+
+// Implements a buzzer noise for checkpoint //
 void PlayBeep(int volume, int delay_ms){
   analogWrite(BUZZER, volume);
   delay(delay_ms);
   analogWrite(BUZZER, 0);
   delay(delay_ms);
 }
+// Implements a buzzer noise for checkpoint //
 
 
 
 
-
-void go_straight() {
-    float theta_error = kinematics.getTheta();
-    int turn_pwm = 0;
-
-    leftSensorRead = line_left.readCalib();
-    centreSensorRead = line_centre.readCalib();
-    rightSensorRead = line_right.readCalib();
-
-    bool left_on_line=false;
-    bool right_on_line=false;
-
-    if (leftSensorRead > 150) left_on_line = true;
-    if (rightSensorRead > 150) right_on_line = true;
-    
-    float left_speed= pidLeft.update(demand, left_speed_loop);
-    float right_speed= pidRight.update(demand, right_speed_loop);
-
-    if (left_on_line==false) {
-      turn_pwm = 2.0;
-    }
-    else if (right_on_line==false) {
-      turn_pwm = -2.0;
-    }
-    else if (left_on_line==true && right_on_line==true) {
-      turn_pwm = 0;
-    }
-  
-    int left_demand  =  left_speed + turn_pwm;
-    int right_demand =  right_speed - turn_pwm;
-    
-    leftMotor(left_demand);
-    rightMotor(right_demand);
-}
-
-// Defining motor functions
+// Defining motor functions //
 void leftMotor(float speed) {
   if (speed < -255.0f || speed > 255.0f) {
     Serial.println("Invalid Left Motor Speed.");
@@ -178,3 +252,4 @@ void rightMotor(float speed) {
     analogWrite( R_PWM_PIN, speed );
   }
 }
+// Defining motor functions //
