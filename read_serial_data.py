@@ -1,58 +1,62 @@
 import serial
 import time
 import csv
+import matplotlib.pyplot as plt
 
-# empty list to store the data
-right_wheel = []
-left_wheel = []
-demadn = []
+def main():
+    # First read the sensor_data
+    readSerialMonitor()
 
-# ser = serial.Serial();
-arduino = serial.Serial(port='COM6', baudrate=9600, timeout=.1)
-time.sleep(2)
+    # Then try to plot things
+    # plotSpeedVsDist()
 
-# if (b=='s'), then start writing to file
-with open('sensor_data.csv', mode='w') as sensor_data:
-    # open csv file in write mode
-    sensor_data = csv.writer(sensor_data, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-
-    #  write header for each column of csv file
-    sensor_data.writerow(['Right_wheel_speed', 'Demand', 'Left_wheel_speed'])
-
-    # reads serial monitor for 50 seconds
-    for i in range(50):
-        b = arduino.readline()               # read a byte string until line terminator
-        string_n = b.decode()                # decode byte string into Unicode
-        string = string_n.rstrip()           # remove \n and \r
-        split_str = string.split(',')        # split at the commas to get each value
+    print(" :) \n")
 
 
-        # flt = float(string)            # convert string to float
-        # data.append(flt)               # add to the end of data list
+def readSerialMonitor():
+    arduino = serial.Serial(port='COM6', baudrate=9600, timeout=.1)
+    # time.sleep(2)
 
-        # if (b = 'k'), then stop writing to file
-        sensor_data.writerow(split_str)
-        print(split_str)
+    with open('sensor_data.csv', mode='w') as sensor_data:
+        # open csv file in write mode
+        sensor_data = csv.writer(sensor_data, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        #  write header for each column of csv file
+        sensor_data.writerow(['proximity_distance/mm', 'als_distance/mm', 'als_lux/lux','elapsed_time/s'])
+
+        # reads serial monitor for 180 seconds
+        for i in range(180):
+            b = arduino.readline()                  # read a byte string until line terminator
+            string_n = b.decode()                   # decode byte string into Unicode
+            string = string_n.rstrip()              # remove \n and \r
+            split_str = string.split(',')           # split at the commas to get each value
+            # flt = float(string)                   # convert string to float
+
+            sensor_data.writerow(split_str)         # write to the csv file
+            print(split_str)
+            # time.sleep(0.1)                       # wait (sleep) 0.1 seconds
+    arduino.close()
 
 
-        time.sleep(0.1)                # wait (sleep) 0.1 seconds
+def plotSpeedVsDist():
+    speed=[]
+    dist=[]
+    lux=[]
 
-arduino.close()
+    csvfile = open('sensor_data.csv', 'r')
+    plots= csv.reader(csvfile, delimiter=',')
+    for row in plots:
+        # speed.append(float(row[0]))
+        # dist.append(float(row[1]))
+        lux.append(float(row[2]))
+
+    f1 = plt.figure()
+    plt.plot(lux)
+    plt.legend()
+    plt.xlabel('Time')
+    plt.ylabel('Light Source calculated by sensor /mm')
+    plt.show()
 
 
-
-#  Print the list data[] to console
-# for line in data:
-#     print(line)
-
-# --------- another way to do the things
-# def write_read(x):
-    # arduino.write(bytes(x, 'utf-8'))
-    # time.sleep(0.05)
-    # data = arduino.readline()
-    # return data
-
-# while True:
-    # num = input("Enter a number: ") # Taking input from user
-    # value = write_read(num)
-    # print(value) # printing the value
+if __name__ == "__main__":
+    main()
