@@ -13,9 +13,7 @@
 #define LINE_CENTRE_PIN A3 //Pin for the centre line sensor
 #define LINE_RIGHT_PIN  A4 //Pin for the right line sensor
 #define BUZZER 6
-#define kpReturn 70
-#define kiReturn 0.0001
-#define kdReturn 1
+
 VL6180X sensor;
 float light_meas;
 float prox_meas;
@@ -23,8 +21,6 @@ float dist_als;
 #define SCALING 3
 
 
-PID pidLeft( kpReturn, kiReturn, kdReturn );
-PID pidRight( kpReturn, kiReturn, kdReturn );
 
 Kinematics kinematics;
 unsigned long speed_update_ts;
@@ -47,6 +43,9 @@ float integral_error_left;
 float integral_error_right;
 unsigned long pid_update_dt;
 unsigned long start_time;
+int state;
+int wasItPressed;
+int BUTTON_A=14;
 
 int leftSensorRead,  centreSensorRead,  rightSensorRead; //define sensor readings
 
@@ -57,6 +56,12 @@ lineSensor line_right(LINE_RIGHT_PIN); //Create a line sensor object for the rig
 float pwr_left;
 float pwr_right;
 
+float kp=40;
+float ki=0.002083;
+float kd=-2;
+
+PID left_PID(kp,ki,kd);
+PID right_PID(kp,ki,kd);
 
 void setup() 
 {
@@ -100,15 +105,83 @@ void setup()
   integral_error_left=0;
   integral_error_right=0;
 
-  
+  wasItPressed=0;
+  state=0;
 }
  
 
 // Remember, loop runs again and again
 void loop(){
 
+  unsigned long speed_update_dt;
+
+  straightLine();
+
+  speed_update_dt= millis()-speed_update_ts;
+  if(speed_update_dt>50) {
+    speed_update_ts= millis();
+    
+    long left_diff;
+    long right_diff;
+  
+    
+    left_diff= countLeft - countLeft_prev;
+    left_speed_loop= (float)left_diff;
+    right_diff= countRight - countRight_prev;
+    right_speed_loop= (float)right_diff;
+
+    countLeft_prev = countLeft;
+    countRight_prev = countRight;
+    
+    //velocity of wheel in counts/s
+    left_speed_loop= left_speed_loop/speed_update_dt;
+    right_speed_loop= right_speed_loop/speed_update_dt;
+    //update last count
+
+  } 
+
+    light_meas= sensor.readAmbientSingle();
+    prox_meas= sensor.readRangeSingleMillimeters();
+    dist_als= 1000*sqrt(80/(2*PI*light_meas));
+    unsigned long elapsed_duration= millis()-start_time;
+
+
+    Serial.print(prox_meas);  
+    Serial.print(',');
+    Serial.print(dist_als);
+    Serial.print(',');
+    Serial.print(light_meas);
+    Serial.print(',');  
+    Serial.println(elapsed_duration);
+    Serial.print('\n');
+
+    
+   // HIGH -> button released, LOW -> button presssed
+    if( state == 0 ) {
+        //listen for button press, if pressed change state
+        int buttonState = digitalRead(BUTTON_A);
+        if (buttonState == LOW) {
+            state = 1;
+            wasItPressed = 1;
+        }
+    }
+    else if ( state == 1 ) {
+      if(prox_meas>100){
+        leftMotor(left_PID.update(demand, left_speed_loop));
+        rightMotor(right_PID.update(demand, right_speed_loop));  
  
-  straightLine();    
+      }
+      else if(prox_meas<=100){
+        leftMotor(0);
+        rightMotor(0);
+      }
+    }
+    else {
+        Serial.print("System Error, Unknown state: ");
+        Serial.println( state );
+    }
+ 
+
   
 }
 
@@ -209,11 +282,11 @@ void straightLine() {
     /*
     Serial.print(left_speed_loop);
     Serial.print(',');
-    Serial.print(error_left);
-    Serial.print(',');
+    //Serial.print(error_left);
+    //Serial.print(',');
     Serial.print(demand);
-    Serial.print(',');
-    Serial.print(d_term_left);
+    //Serial.print(',');
+    //Serial.print(d_term_left);
     //Serial.print(',');
     //Serial.print(i_term_left);
     Serial.print('\n');
@@ -254,24 +327,17 @@ void straightLine() {
   }
 
 
-
+/*
   light_meas= sensor.readAmbientSingle();
   prox_meas= sensor.readRangeSingleMillimeters();
   dist_als= 1000*sqrt(80/(2*PI*light_meas));
-  unsigned long elapsed_duration= millis()-start_time;
+*/
 
-  Serial.print(prox_meas);  
-  Serial.print(',');
-  Serial.print(dist_als);
-  Serial.print(',');
-  Serial.print(light_meas);
-  Serial.print(',');  
-  Serial.print(elapsed_duration/1000);
-  Serial.print('\n');
+
   
 
-   leftMotor(pwr_left+turn_pwm);
-   rightMotor(pwr_right-turn_pwm);
+  //leftMotor(pwr_left+turn_pwm);
+  //rightMotor(pwr_right-turn_pwm);
   
   /*
   leftMotor(pidLeft.update(demand, left_speed_loop));

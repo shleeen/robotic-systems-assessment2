@@ -1,11 +1,13 @@
 import serial
+import pandas as pd
 import time
 import csv
 import matplotlib.pyplot as plt
 
 def main():
     # First read the sensor_data
-    readSerialMonitor()
+    #readSerialMonitor()
+    plotTimeVsDist()
 
     # Then try to plot things
     # plotSpeedVsDist()
@@ -14,10 +16,10 @@ def main():
 
 
 def readSerialMonitor():
-    arduino = serial.Serial(port='COM6', baudrate=9600, timeout=.1)
+    arduino = serial.Serial(port='/dev/cu.usbmodem14101', baudrate=9600, timeout=.1)
     # time.sleep(2)
 
-    with open('sensor_data.csv', mode='w') as sensor_data:
+    with open('sensor_data_blue_lightOn.csv', mode='w') as sensor_data:
         # open csv file in write mode
         sensor_data = csv.writer(sensor_data, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
@@ -32,29 +34,44 @@ def readSerialMonitor():
             split_str = string.split(',')           # split at the commas to get each value
             # flt = float(string)                   # convert string to float
 
+
             sensor_data.writerow(split_str)         # write to the csv file
             print(split_str)
+
+
             # time.sleep(0.1)                       # wait (sleep) 0.1 seconds
     arduino.close()
 
 
-def plotSpeedVsDist():
-    speed=[]
-    dist=[]
-    lux=[]
+def plotTimeVsDist():
 
-    csvfile = open('sensor_data.csv', 'r')
+
+
+    prox_meas=[]
+    dist_als = []
+    lux = []
+    time = []
+
+
+
+    csvfile = open('sensor_data_blue_lightOn.csv', 'r')
+    df = pd.read_csv('sensor_data_blue_lightOn.csv')
+    df.drop_duplicates(inplace=True)
+    df.to_csv('sensor_data_blue_lightOn.csv', index=False)
     plots= csv.reader(csvfile, delimiter=',')
     for row in plots:
-        # speed.append(float(row[0]))
-        # dist.append(float(row[1]))
+        prox_meas.append(float(row[0]))
+        dist_als.append(float(row[1]))
         lux.append(float(row[2]))
+        time.append(float(row[3]))
 
     f1 = plt.figure()
-    plt.plot(lux)
+    plt.plot(time,prox_meas, label='Proximity Sensor')
+    plt.plot(time,dist_als ,label= 'Ambient Light Sensor')
     plt.legend()
-    plt.xlabel('Time')
-    plt.ylabel('Light Source calculated by sensor /mm')
+    plt.xlabel('Time/ms')
+    plt.ylabel('Distance Calculated By Sensor/mm')
+    plt.savefig('blue-lightOn-DistvsTime.pdf')
     plt.show()
 
 
