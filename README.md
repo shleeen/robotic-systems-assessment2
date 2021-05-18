@@ -1,15 +1,12 @@
 # robotic-systems-assessment2
+The coursework for unit EMATM0053 Robotic Systems at University of Bristol.
 
 
-# how to read data from the serial monitor
-* make sure serial monitor is closed
-* run
+# To read data from the serial monitor:
+* make sure Arduino serial monitor is closed
+* then run-
 ```
 python read_serial_data.py
 ```
-* data will be saved in the csv file called serial_data.csv
+The data will be saved in the csv file called serial_data.csv.
 
-
-# TO-DO
-* python serial reading:
-- deal with rewriting the file... or should it append data, should it create a new file everytime?
