@@ -1,17 +1,12 @@
 #include "encoders.h"
 #include "PID.h"
 #include "kinematics.h"
-#include "lineSensors.h"
-#include <Wire.h>
 #include <VL6180X.h>
 //Pin definitions for motor
 #define L_PWM_PIN 10
 #define L_DIR_PIN 16
 #define R_PWM_PIN  9
 #define R_DIR_PIN 15
-#define LINE_LEFT_PIN   A2 //Pin for the left line sensor
-#define LINE_CENTRE_PIN A3 //Pin for the centre line sensor
-#define LINE_RIGHT_PIN  A4 //Pin for the right line sensor
 #define BUZZER 6
 
 VL6180X sensor;
@@ -47,11 +42,6 @@ int state;
 int wasItPressed;
 int BUTTON_A=14;
 
-int leftSensorRead,  centreSensorRead,  rightSensorRead; //define sensor readings
-
-lineSensor line_left(LINE_LEFT_PIN); //Create a line sensor object for the left sensor
-lineSensor line_centre(LINE_CENTRE_PIN); //Create a line sensor object for the centre sensor
-lineSensor line_right(LINE_RIGHT_PIN); //Create a line sensor object for the right sensor
 
 float pwr_left;
 float pwr_right;
@@ -78,13 +68,7 @@ void setup()
   sensor.setScaling(SCALING);
   sensor.setTimeout(500);
 
-  line_left.calib();
-  line_centre.calib();
-  line_right.calib();
 
-  leftSensorRead=0;
-  centreSensorRead=0;
-  rightSensorRead=0;
 
   speed_update_ts=millis();
 
@@ -115,7 +99,7 @@ void loop(){
 
   unsigned long speed_update_dt;
 
-  straightLine();
+  //straightLine();
 
   speed_update_dt= millis()-speed_update_ts;
   if(speed_update_dt>50) {
@@ -303,28 +287,6 @@ void straightLine() {
     */
   }
 
-  int turn_pwm = 0;
-
-  leftSensorRead = line_left.readCalib();
-  centreSensorRead = line_centre.readCalib();
-  rightSensorRead = line_right.readCalib();
-
-  bool left_on_line=false;
-  bool right_on_line=false;
-
-  if (leftSensorRead > 150) left_on_line = true;
-  if (rightSensorRead > 150) right_on_line = true;
-  //sets approximately equal speed to both motors
-
-  if (left_on_line==false) {
-    turn_pwm = 2.0;
-  }
-  else if (right_on_line==false) {
-    turn_pwm = -2.0;
-  }
-  else if (left_on_line==true && right_on_line==true) {
-    turn_pwm = 0;
-  }
 
 
 /*
