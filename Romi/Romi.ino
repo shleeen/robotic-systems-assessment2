@@ -1,6 +1,7 @@
 #include "encoders.h"
 #include "PID.h"
 #include "kinematics.h"
+#include <Wire.h>
 #include <VL6180X.h>
 //Pin definitions for motor
 #define L_PWM_PIN 10
